@@ -19,5 +19,11 @@ A. and B. Strugatsky, Monday Begins on Saturday
 - The script should check that the specified directory exists and output appropriate error messages.
 
 ### Usage
+<<<<<<< HEAD
 `./cleanup.sh /dir/to/clean [file extension to delete: .tmp .log .db]`
 >>>>>>> be48783 (readme update)
+=======
+```
+./cleanup.sh /dir/to/clean [file extension to delete: .tmp .log .db]
+```
+>>>>>>> 00622ab (updated readme)
