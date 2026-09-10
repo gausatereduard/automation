@@ -12,4 +12,6 @@
 - The script should check that the specified directory exists and output appropriate error messages.
 
 ### Usage
-`./cleanup.sh /dir/to/clean [file extension to delete: .tmp .log .db]`
+```
+./cleanup.sh /dir/to/clean [file extension to delete: .tmp .log .db]
+```
