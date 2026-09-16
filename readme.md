@@ -1,67 +1,77 @@
-# Support project for lab02
+# Lab02 - Currency Exchange Rate API Client
 
-It is a support project for `lab02` and represents a Currency Exchange Rate service. The default currency is `MDL` (Moldovan Leu) and the service provides exchange rates for `USD`, `EUR`, `RON`, `RUS` and `UAH`.
+Python client for an exchange rate service. Gets the exchange rate of one currency against another on a specified date.
 
-Project contains the following files and directories:
+The service provides rates for `MDL`, `USD`, `EUR`, `RON`, `RUS`, `UAH`, with valid data from `2025-01-01` to `2025-09-15`.
 
-- `app/` - directory containing the main application code;
-  - `index.php` - main application file;
-- `data.json` - JSON file with sample exchange rates data;
-- `sample.env` - Environment variables file for the application;
-- `docker-compose.yml` - Docker Compose file for setting up the application and its dependencies.
+This repository contains only the client (`currency_exchange_rate.py`). The service itself is external and must be running separately.
 
-Project contains valid currency rates data from `2025-01-01` to `2025-09-15`.
+Project files:
+
+- `currency_exchange_rate.py` - the client script;
+- `requirements.txt` - Python dependencies;
+- `.env` - `BASE_URL` and `API_KEY` config;
+- `data/` - created automatically, saved JSON responses;
+- `full.log` / `error.log` - created automatically, TSV logs.
+
+## Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+## Configure
+
+Create `.env` from `sample.env`:
+
+```bash
+cp sample.env .env
+```
+
+`.env` content:
+
+```
+BASE_URL=http://localhost:8080
+API_KEY=EXAMPLE_API_KEY
+```
+
+The script loads it with `load_dotenv()` and falls back to `http://localhost:8080` / `EXAMPLE_API_KEY` if missing. The key must match the service.
 
 ## How to run
 
-1. Make sure you have Docker and Docker Compose installed on your machine.
-2. Clone this repository to your local machine.
-3. Navigate to the project directory.
-4. Create a `.env` file by copying the `sample.env` file and set your desired API key.
+```bash
+python currency_exchange_rate.py <from> <to> <date YYYY-MM-DD>
+```
 
-   ```bash
-   cp sample.env .env
-   ```
-
-5. Run the following command to build and start the application:
-
-   ```bash
-   docker-compose up --build
-   ```
-
-6. The application will be accessible at `http://localhost:8080`.
-
-## How to use
-
-### List of currencies
-
-You can obtain the list of available currencies by sending a GET request to the `/?currencies` endpoint:
+Examples (5 dates with equal 2-month interval):
 
 ```bash
-curl "http://localhost:8080/?currencies" -X POST -d "key=EXAMPLE_API_KEY"
+python currency_exchange_rate.py USD EUR 2025-01-01
+python currency_exchange_rate.py USD EUR 2025-03-01
+python currency_exchange_rate.py USD EUR 2025-05-01
+python currency_exchange_rate.py USD EUR 2025-07-01
+python currency_exchange_rate.py USD EUR 2025-09-01
 ```
 
-#### Example response, list of currencies
-
-```json
-{"error":"","data":["MDL","USD","EUR","RON","RUS","UAH"]}
-```
-
-### Currency exchange rate
-
-You can access the currency exchange service by sending a GET request to the `/` endpoint with the following query parameters:
-
-- `from` (GET) - the currency you want to convert from (e.g., `USD`, `EUR`,);
-- `to` (GET) - the currency you want to convert to (e.g., `USD`, `EUR`);
-- `date` (GET) - (optional) the date for which you want the exchange rate in `YYYY-MM-DD` format. If not provided, the latest rates will be used;
-- `key` (POST) - API key for authentication.
+Error example:
 
 ```bash
-curl "http://localhost:8080/?from=USD&to=EUR&date=2023-10-01" -X POST -d "key=EXAMPLE_API_KEY"
+python currency_exchange_rate.py USD XXX 2025-05-01
 ```
 
-#### Example response, currency exchange rate
+What happens on run:
 
-```json
-{"error":"","data":{"from":"USD","to":"EUR","rate":1.1753024588927439,"date":"2023-10-01"}}
-```
+- prints server response to console, prints `[E] ...` on errors;
+- saves success response to `data/{FROM}_{TO}_{DATE}_{timestamp}.json` (creates `data/` if missing);
+- appends TSV logs (`time\t[level]\tmessage`) to `full.log` (everything) and `error.log` (errors only). The API key is never logged. Example: `2026-09-14 10:00:00\t[Debug]\tAPI Client getExchange('EUR', 'USD', '2023-01-01') issued`.
+
+## Script structure
+
+`class ApiClient(baseUrl, apiKey)`:
+
+- `log(msg, level="Debug")` - writes `full.log` always, `error.log` on `Error`, TSV format;
+- `getCurrencies()` - `POST ?currencies` with `key`, stores `self._currencies`, logs request and `response.text`, returns `False` on request / JSON / API `error`;
+- `getExchange(currFrom, currTo, date)` - logs `getExchange('FROM', 'TO', 'date') issued`, checks currencies locally, `POST ?from=&to=&date=` with `key`, logs response, checks API `error`, calls `saveResponse` on success;
+- `saveResponse(fromCurr, toCurr, date, content)` - creates `data/`, dumps JSON with `indent=4`.
+
+`main()` - checks `sys.argv` (needs 3 params, else usage + log), uppercases currencies, loads `BASE_URL` / `API_KEY` from env, calls `getCurrencies()` then `getExchange()`.
