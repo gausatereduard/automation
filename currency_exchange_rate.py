@@ -2,8 +2,19 @@ import sys
 import os
 import json
 import requests
+import logging
 from dotenv import load_dotenv
 from datetime import datetime
+
+logging.basicConfig(
+    filename="full.log",
+    filemode="a",
+    encoding='utf-8',
+    format='%(asctime)s\t%(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+    level=logging.INFO
+)
+logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -13,69 +24,58 @@ class ApiClient:
         self._apiKey = str(apiKey)
         self._currencies = []
 
-    def log(self, msg, level="Debug"):
-        time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        line = f"{time}\t[{level}]\t{msg}\n"
-
-        with open("full.log", "a", encoding="utf-8") as logFile:
-            logFile.write(line)
-
-        if level == "Error":
-            with open("error.log", "a", encoding="utf-8") as logFile:
-                logFile.write(line)
-
     def saveResponse(self, fromCurr, toCurr, date, content):
         if not os.path.exists("data"):
             os.makedirs("data")
-            self.log("API Client data directory created")
+            logging.info("API Client data directory created")
 
         fileName = f"data/{fromCurr}_{toCurr}_{date}_{datetime.now().timestamp()}.json"
 
         with open(fileName, "w", encoding="utf-8") as responseFile:
             json.dump(content, responseFile, indent=4)
 
-        self.log(f"API Client saveResponse('{fileName}') done")
+        logging.info(f"API Client saveResponse('{fileName}') done")
         print(f"Saved to {fileName}")
 
     def getCurrencies(self):
-        self.log("API Client getCurrencies() issued")
+        logging.info("API Client getCurrencies() issued")
 
         try:
             response = requests.post(url=self._baseUrl, params={'currencies': ''}, data={"key": self._apiKey})
         except Exception as e:
             print(f"[E] request failed: {e}")
-            self.log(f"API Client getCurrencies() request failed: {e}", "Error")
+            logging.error(f"API Client getCurrencies() request failed: {e}")
             return False
-        self.log(f"API Client getCurrencies() response received: {response.text}")
+        logging.info(f"API Client getCurrencies() response received: {response.text}")
 
         try:
             parsedJson = response.json()
         except Exception as e:
             print(f"[E] bad response: {e}")
-            self.log(f"API Client getCurrencies() bad response: {e}", "Error")
+            logging.error(f"API Client getCurrencies() bad response: {e}")
             return False
 
         if parsedJson["error"] != "":
             print(f"[E] {parsedJson['error']}")
-            self.log(f"API Client getCurrencies() error: {parsedJson['error']}", "Error")
+            logging.error(f"API Client getCurrencies() error: {parsedJson['error']}")
             return False
 
         self._currencies = parsedJson["data"]
-        self.log(f"API Client getCurrencies() got: {self._currencies}")
+        logging.info(f"API Client getCurrencies() got: {self._currencies}")
         # print(self._currencies)
         return True
 
     def getExchange(self, currFrom, currTo, date):
-        self.log(f"API Client getExchange('{currFrom}', '{currTo}', '{date}') issued")
+        logging.info(f"API Client getExchange('{currFrom}', '{currTo}', '{date}') issued")
 
         if currFrom not in self._currencies:
             print(f"[E] unknown currFrom currency: {currFrom}")
-            self.log(f"API Client getExchange() unknown currFrom currency: {currFrom}", "Error")
+            logging.error(f"API Client getExchange() unknown currFrom currency: {currFrom}")
             return
 
         if currTo not in self._currencies:
             print(f"[E] unknown currTo currency: {currTo}")
-            self.log(f"API Client getExchange() unknown currTo currency: {currTo}", "Error")
+            logging.error(f"API Client getExchange() unknown currTo currency: {currTo}")
             return
 
         params = {
@@ -84,28 +84,28 @@ class ApiClient:
             'date': date
         }
 
-        self.log(f"API Client POST {self._baseUrl} params={params} issued")
+        logging.info(f"API Client POST {self._baseUrl} params={params} issued")
 
         try:
             response = requests.post(url=self._baseUrl, params=params, data={"key": self._apiKey})
         except Exception as e:
             print(f"[E] request failed: {e}")
-            self.log(f"API Client getExchange('{currFrom}', '{currTo}', '{date}') request failed: {e}", "Error")
+            logging.error(f"API Client getExchange('{currFrom}', '{currTo}', '{date}') request failed: {e}")
             return
 
-        self.log(f"API Client getExchange('{currFrom}', '{currTo}', '{date}') response received: {response.text}")
+        logging.info(f"API Client getExchange('{currFrom}', '{currTo}', '{date}') response received: {response.text}")
         # print(response.text)
 
         try:
             parsedJson = response.json()
         except Exception as e:
             print(f"[E] bad response: {e}")
-            self.log(f"API Client getExchange() bad response: {e}", "Error")
+            logging.error(f"API Client getExchange() bad response: {e}")
             return
 
         if parsedJson["error"] != "":
             print(f"[E] {parsedJson['error']}")
-            self.log(f"API Client getExchange() error: {parsedJson['error']}", "Error")
+            logging.error(f"API Client getExchange() error: {parsedJson['error']}")
             return
 
         self.saveResponse(currFrom, currTo, date, parsedJson)
@@ -114,16 +114,11 @@ def main():
     if len(sys.argv) != 4:
         print(f"[E] usage: python {sys.argv[0]} <from> <to> <date YYYY-MM-DD>")
 
-        with open("full.log", "a", encoding="utf-8") as logFile:
-            time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            logFile.write(f"{time}\t[Error]\tAPI Client wrong args: {sys.argv}\n")
-
-        with open("error.log", "a", encoding="utf-8") as errorFile:
-            time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            errorFile.write(f"{time}\t[Error]\tAPI Client wrong args: {sys.argv}\n")
+        logging.error(f"API Client wrong args: {sys.argv}")
 
         return
 
+    logging.error(f"API Client ran with args: {sys.argv}")
     currFrom = str(sys.argv[1]).upper()
     currTo = str(sys.argv[2]).upper()
     date = str(sys.argv[3])
