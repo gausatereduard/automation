@@ -1,30 +1,4 @@
-# Automation and scripting
-
-Our wizards, — he continued, — create automated systems that allow them to conduct complex experiments and observations without being physically present.
-
-A. and B. Strugatsky, Monday Begins on Saturday
-
-## Lab #1
-
-### Cleaning up temporary files:
-
-#### Requirements
-
-- The script should be named cleanup.sh;
-- The script should take at least one argument: the path to the directory to clean up;
-- The remaining arguments are optional and specify the types of files to delete (e.g., .tmp, .log);
-- By default, files with the .tmp extension are deleted;
-- At the end of the script execution, it should output the number of deleted files;
-- The script should check that the specified directory exists and output appropriate error messages.
-
-#### Usage
-```
-./cleanup.sh /dir/to/clean [file extension to delete: .tmp .log .db]
-```
-
----
-
-## Lab #2
+# Lab #2
 
 Python client for an exchange rate service. Gets the exchange rate of one currency against another on a specified date.
 
@@ -40,13 +14,13 @@ Project files:
 - `data/` - created automatically, saved JSON responses;
 - `full.log` / `error.log` - created automatically, TSV logs.
 
-### Install dependencies
+## Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Configure
+## Configure
 
 Create `.env` from `sample.env`:
 
@@ -63,7 +37,7 @@ API_KEY=EXAMPLE_API_KEY
 
 The script loads it with `load_dotenv()` and falls back to `http://localhost:8080` / `EXAMPLE_API_KEY` if missing. The key must match the service.
 
-### How to run
+## How to run
 
 ```bash
 python currency_exchange_rate.py <from> <to> <date YYYY-MM-DD>
@@ -91,7 +65,7 @@ What happens on run:
 - saves success response to `data/{FROM}_{TO}_{DATE}_{timestamp}.json` (creates `data/` if missing);
 - appends TSV logs (`time\t[level]\tmessage`) to `full.log` (everything) and `error.log` (errors only). The API key is never logged. Example: `2026-09-14 10:00:00\t[Debug]\tAPI Client getExchange('EUR', 'USD', '2023-01-01') issued`.
 
-### Script structure
+## Script structure
 
 `class ApiClient(baseUrl, apiKey)`:
 
