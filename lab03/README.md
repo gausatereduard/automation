@@ -1,31 +1,17 @@
-# Lab #2
+# Lab #3 — Currency exchange rates on a schedule (cron + Docker)
 
-Python client for an exchange rate service. Gets the exchange rate of one currency against another on a specified date.
+Runs `currency_exchange_rate.py` on a schedule inside Docker using cron:
 
-The service provides rates for `MDL`, `USD`, `EUR`, `RON`, `RUS`, `UAH`, with valid data from `2025-01-01` to `2025-09-15`.
+- Daily at 06:00 — MDL → EUR rate for the previous day.
+- Weekly on Friday at 17:00 — MDL → USD rate for the previous week (7 days ago).
 
-This repository contains only the client (`currency_exchange_rate.py`). The service itself is external and must be running separately.
-
-Project files:
-
-- `currency_exchange_rate.py` - the client script;
-- `requirements.txt` - Python dependencies;
-- `.env` - `BASE_URL` and `API_KEY` config;
-- `data/` - created automatically, saved JSON responses;
-- `full.log` / `error.log` - created automatically, TSV logs.
-
-## Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
+The script (`currency_exchange_rate.py`, from Lab 02) calls an external exchange-rate service: `python currency_exchange_rate.py <from> <to> <date YYYY-MM-DD>`. It prints the result, saves JSON to `data/{FROM}_{TO}_{DATE}_{timestamp}.json`, and appends TSV logs to `full.log`. The service itself is external and must be running separately (see `BASE_URL` / `API_KEY` below).
 
 ## Configure
 
-Create `.env` from `sample.env`:
-
 ```bash
 cp sample.env .env
+# edit .env so BASE_URL / API_KEY point to the real service
 ```
 
 `.env` content:
@@ -35,43 +21,79 @@ BASE_URL=http://localhost:8080
 API_KEY=EXAMPLE_API_KEY
 ```
 
-The script loads it with `load_dotenv()` and falls back to `http://localhost:8080` / `EXAMPLE_API_KEY` if missing. The key must match the service.
+Note: if the service runs on the host (outside Docker), `localhost` inside the container does not resolve to the host. Use `http://host.docker.internal:8080` on Docker Desktop (Windows/Mac), or the host LAN IP on Linux.
 
-## How to run
+## How to build and run the container with cron
 
-```bash
-python currency_exchange_rate.py <from> <to> <date YYYY-MM-DD>
-```
-
-Examples (5 dates with equal 2-month interval):
+With Docker Compose (recommended):
 
 ```bash
-python currency_exchange_rate.py USD EUR 2025-01-01
-python currency_exchange_rate.py USD EUR 2025-03-01
-python currency_exchange_rate.py USD EUR 2025-05-01
-python currency_exchange_rate.py USD EUR 2025-07-01
-python currency_exchange_rate.py USD EUR 2025-09-01
+docker compose up --build -d
+docker compose ps
+docker compose logs -f
 ```
 
-Error example:
+With plain Docker:
 
 ```bash
-python currency_exchange_rate.py USD XXX 2025-05-01
+docker build -t lab03-currency-cron .
+docker run -d --name lab03-currency-cron --env-file .env lab03-currency-cron
+docker logs -f lab03-currency-cron
 ```
 
-What happens on run:
+Stop / restart:
 
-- prints server response to console, prints `[E] ...` on errors;
-- saves success response to `data/{FROM}_{TO}_{DATE}_{timestamp}.json` (creates `data/` if missing);
-- appends TSV logs (`time\t[level]\tmessage`) to `full.log` (everything) and `error.log` (errors only). The API key is never logged. Example: `2026-09-14 10:00:00\t[Debug]\tAPI Client getExchange('EUR', 'USD', '2023-01-01') issued`.
+```bash
+docker compose down
+docker compose up -d
+```
 
-## Script structure
+## How to verify that cron tasks are executing
 
-`class ApiClient(baseUrl, apiKey)`:
+1. Check the daemon and installed schedule inside the container:
 
-- `log(msg, level="Debug")` - writes `full.log` always, `error.log` on `Error`, TSV format;
-- `getCurrencies()` - `POST ?currencies` with `key`, stores `self._currencies`, logs request and `response.text`, returns `False` on request / JSON / API `error`;
-- `getExchange(currFrom, currTo, date)` - logs `getExchange('FROM', 'TO', 'date') issued`, checks currencies locally, `POST ?from=&to=&date=` with `key`, logs response, checks API `error`, calls `saveResponse` on success;
-- `saveResponse(fromCurr, toCurr, date, content)` - creates `data/`, dumps JSON with `indent=4`.
+   ```bash
+   docker exec lab03-currency-cron crontab -l
+   docker exec lab03-currency-cron service cron status  # or: ps aux | grep cron
+   ```
 
-`main()` - checks `sys.argv` (needs 3 params, else usage + log), uppercases currencies, loads `BASE_URL` / `API_KEY` from env, calls `getCurrencies()` then `getExchange()`.
+2. Check the cron output file (every job appends `>> /var/log/cron.log 2>&1`):
+
+   ```bash
+   docker exec lab03-currency-cron cat /var/log/cron.log
+   # live tail:
+   docker exec lab03-currency-cron tail -f /var/log/cron.log
+   ```
+
+   The entrypoint also runs `tail -f /var/log/cron.log` in background, so the same
+   content appears in:
+
+   ```bash
+   docker compose logs -f
+   # or
+   docker logs -f lab03-currency-cron
+   ```
+
+3. Force a run without waiting for 06:00 / Friday 17:00 — execute the same command
+   the cronjob runs (previous day / previous week are computed by `date`):
+
+   ```bash
+   docker exec lab03-currency-cron /usr/local/bin/python /app/currency_exchange_rate.py MDL EUR $(date -d "yesterday" +%Y-%m-%d)
+   docker exec lab03-currency-cron cat /var/log/cron.log
+   ```
+
+   Or trigger cron's command line manually with yesterday's / last week's date.
+
+4. Check script side effects: a successful run creates
+   `data/MDL_EUR_<date>_<timestamp>.json` (persisted to host `./data/`) and
+   appends to `full.log`:
+
+   ```bash
+   ls data/
+   cat full.log
+   ```
+
+If `/var/log/cron.log` is empty, the schedule simply hasn't fired yet (daily 06:00,
+weekly Friday 17:00). Use step 3 to test immediately, and check `crontab -l` plus
+`docker logs` for entrypoint errors (`Log file created...`, `Installed crontab...`,
+`Starting cron daemon`).
