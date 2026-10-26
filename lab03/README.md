@@ -7,6 +7,17 @@ Runs `currency_exchange_rate.py` on a schedule inside Docker using cron:
 
 The script (`currency_exchange_rate.py`, from Lab 02) calls an external exchange-rate service: `python currency_exchange_rate.py <from> <to> <date YYYY-MM-DD>`. It prints the result, saves JSON to `data/{FROM}_{TO}_{DATE}_{timestamp}.json`, and appends TSV logs to `full.log`. The service itself is external and must be running separately (see `BASE_URL` / `API_KEY` below).
 
+## Project structure
+
+- `currency_exchange_rate.py` — client script, run as `python currency_exchange_rate.py <from> <to> <date YYYY-MM-DD>`; writes `data/` JSON and `full.log`.
+- `requirements.txt` — Python dependencies (`requests`, `python-dotenv`, ...).
+- `sample.env` — example `BASE_URL` / `API_KEY`; copy to `.env`.
+- `cronjob` — crontab definitions: daily 06:00 `MDL EUR` (yesterday) and Friday 17:00 `MDL USD` (7 days ago), both appending to `/var/log/cron.log`.
+- `entrypoint.sh` — writes runtime env to `/etc/environment`, creates the log, installs the crontab, tails the log, then runs `cron -f`.
+- `Dockerfile` — `python:3.12-slim` + `cron`, installs requirements, copies the script/cronjob/entrypoint, registers the crontab.
+- `docker-compose.yml` — builds the image, runs container `lab03-currency-cron`, persists `./data` and `./logs` (mounted at `/var/log`, so `logs/cron.log` mirrors `/var/log/cron.log`).
+- `data/` — created at runtime, saved API responses; `logs/` — created at runtime, cron output.
+
 ## Configure
 
 ```bash
@@ -33,14 +44,6 @@ docker compose ps
 docker compose logs -f
 ```
 
-With plain Docker:
-
-```bash
-docker build -t lab03-currency-cron .
-docker run -d --name lab03-currency-cron --env-file .env lab03-currency-cron
-docker logs -f lab03-currency-cron
-```
-
 Stop / restart:
 
 ```bash
@@ -63,6 +66,8 @@ docker compose up -d
    docker exec lab03-currency-cron cat /var/log/cron.log
    # live tail:
    docker exec lab03-currency-cron tail -f /var/log/cron.log
+   # same file from the host (bind mount ./logs:/var/log):
+   cat logs/cron.log
    ```
 
    The entrypoint also runs `tail -f /var/log/cron.log` in background, so the same
@@ -97,3 +102,16 @@ If `/var/log/cron.log` is empty, the schedule simply hasn't fired yet (daily 06:
 weekly Friday 17:00). Use step 3 to test immediately, and check `crontab -l` plus
 `docker logs` for entrypoint errors (`Log file created...`, `Installed crontab...`,
 `Starting cron daemon`).
+
+### Troubleshooting: `not a directory: Are you trying to mount a directory onto a file`
+
+Docker volumes/bind mounts are directories; mounting one at `/var/log/cron.log`
+fails, and Compose creates a missing bind source as a directory. That is why the
+compose file mounts `./logs` at `/var/log`. If an earlier attempt left a directory
+named `cron.log` in this folder, delete it before starting again:
+
+```powershell
+Remove-Item .\cron.log -Recurse -Force   # Windows
+rm -rf ./cron.log                         # Linux/macOS
+```
+
