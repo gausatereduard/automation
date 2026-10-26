@@ -1,0 +1,22 @@
+services:
+  currency-cron:
+    build: .
+    container_name: lab03-currency-cron
+    # Load BASE_URL / API_KEY from .env if present (create it from sample.env).
+    # Fall back to defaults so the container still starts without it.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - BASE_URL=${BASE_URL:-http://localhost:8080}
+      - API_KEY=${API_KEY:-EXAMPLE_API_KEY}
+    volumes:
+      # Persist script outputs (data/*.json, full.log) on the host
+      - ./data:/app/data
+      # Mount the DIRECTORY that contains the log, never the log file itself:
+      # Docker cannot mount a directory onto a file, and Compose would create
+      # ./cron.log as a directory if it does not exist (the error seen when
+      # mounting a file path directly). The container still writes to exactly
+      # /var/log/cron.log; it is visible on the host as ./logs/cron.log.
+      - ./logs:/var/log
+    restart: unless-stopped
