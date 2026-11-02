@@ -33,6 +33,8 @@ networks:
     driver: bridge
 Start the Jenkins Controller container using Docker Compose and configure it following the on-screen instructions.
 
+TODO: img src1.png, src2.png
+
 Setting up SSH Agent
 Create a secrets folder in the root of your project and add SSH keys necessary for connecting to remote servers.
 
@@ -82,6 +84,9 @@ Remote root directory: /home/jenkins/agent
 Launch method: Launch agents via SSH
 Host: ssh-agent
 Credentials: select the previously added SSH key
+
+TODO: scr4.png
+
 Creating Jenkins Pipeline for DevOps Task Automation
 Choose a repository with a PHP project on GitHub (for example, from the "PHP Programming" or "Virtualization and Containerization" course). The project should contain unit tests. Create a new Jenkins pipeline using the following Jenkinsfile:
 
@@ -121,6 +126,34 @@ pipeline {
     }
 }
 Verify that the pipeline executes successfully and unit tests pass.
+
+error I got:
+
+The SSH agent container is fine — it was rejecting connections before authentication because Jenkins refused the agent's SSH host key.
+
+The node is configured with:
+
+```
+<sshHostKeyVerificationStrategy class="hudson.plugins.sshslaves.verifiers.KnownHostsFileKeyVerificationStrategy"/>
+```
+but /var/jenkins_home/.ssh/known_hosts did not exist. Jenkins closed the connection during key exchange, which is exactly what the agent logged as:
+
+```
+Connection closed by 172.18.0.2 port ... [preauth]
+```
+This also explains the repeated attempts every ~15 seconds and the SSH Launch ... failed in 165,334 ms messages. The SSH keys themselves are correct — .env and secrets/jenkins_agent_ssh_key.pub match, and the agent later accepted the key.
+
+What I did
+Generated the host keys file inside the Jenkins container and restarted Jenkins:
+
+```
+docker exec jenkins-controller sh -c "mkdir -p /var/jenkins_home/.ssh && ssh-keyscan -H ssh-agent > /var/jenkins_home/.ssh/known_hosts && chown -R jenkins:jenkins /var/jenkins_home/.ssh && chmod 700 /var/jenkins_home/.ssh"
+docker restart jenkins-controller
+```
+
+## Final pipeline overview
+
+TODO: img scr6.png
 
 Report Preparation
 Create a readme.md file in the lab04 folder of your GitHub repository. In the report, describe the following points:
