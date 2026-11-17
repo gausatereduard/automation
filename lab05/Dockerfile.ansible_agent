@@ -1,0 +1,41 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=C.UTF-8
+
+# The Jenkins SSH agent needs a JVM, an SSH server and Ansible.
+# rsync is used by the deployment playbook on the control node.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ansible \
+        ca-certificates \
+        curl \
+        git \
+        openjdk-21-jre-headless \
+        openssh-client \
+        openssh-server \
+        python3 \
+        rsync \
+        unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dedicated unprivileged user that Jenkins connects as.
+RUN groupadd -g 1001 jenkins \
+    && useradd -m -u 1001 -g jenkins -d /home/jenkins -s /bin/bash jenkins \
+    && mkdir -p /home/jenkins/agent /home/jenkins/.ssh \
+    && chown -R jenkins:jenkins /home/jenkins
+
+# SSH server configuration for the Jenkins agent.
+RUN mkdir -p /run/sshd /etc/ssh/sshd_config.d \
+    && printf '%s\n' \
+        'PasswordAuthentication no' \
+        'PermitRootLogin no' \
+        'PubkeyAuthentication yes' \
+        'AllowUsers jenkins' \
+        > /etc/ssh/sshd_config.d/99-lab.conf
+
+COPY docker/ansible_agent_entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod 0755 /usr/local/bin/entrypoint.sh
+
+EXPOSE 22
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

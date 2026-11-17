@@ -1,0 +1,73 @@
+---
+# Copies the PHP project to the test server and verifies the deployment.
+#
+# The playbook is run from the ansible-agent. project_dir points to the
+# checked-out project and can be overridden from the Jenkins pipeline:
+#
+#   ansible-playbook -i ansible/hosts.ini ansible/deploy_php_app.yml \
+#     -e "project_dir=$WORKSPACE/automation/lab05/app"
+- name: Deploy the PHP project to the test server
+  hosts: test_servers
+  become: true
+  gather_facts: false
+
+  vars:
+    project_root: /var/www/html
+    project_dir: "{{ playbook_dir }}/../app"
+    site_files:
+      - index.php
+      - about.php
+      - contact.php
+      - includes
+      - assets
+      - src
+
+  tasks:
+    - name: Check that Apache is installed on the test server
+      ansible.builtin.stat:
+        path: /usr/sbin/apache2
+      register: apache_binary
+
+    - name: Ask the operator to run the setup playbook first
+      ansible.builtin.assert:
+        that: apache_binary.stat.exists
+        fail_msg: >-
+          Apache is not installed. Run setup_test_server.yml before
+          deploy_php_app.yml.
+
+    - name: Copy the site files to the document root
+      ansible.builtin.copy:
+        src: "{{ project_dir }}/{{ item }}"
+        dest: "{{ project_root }}/"
+        owner: www-data
+        group: www-data
+        mode: preserve
+      loop: "{{ site_files }}"
+
+    - name: Make the document root readable by Apache
+      ansible.builtin.file:
+        path: "{{ project_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+        recurse: true
+
+    - name: Restart Apache to pick up the new files
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
+
+    - name: Verify that the deployed page is served
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        status_code: 200
+        return_content: true
+      register: deployed_page
+      retries: 5
+      delay: 2
+      until: deployed_page.status == 200
+
+    - name: Show the deployed page title
+      ansible.builtin.debug:
+        msg: "Deployed page: {{ deployed_page.content | regex_search('<title>(.*?)</title>', '\\1') | first }}"

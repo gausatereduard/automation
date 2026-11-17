@@ -1,0 +1,23 @@
+{
+    "name": "gausatereduard/lab05-static-site",
+    "description": "Static PHP website used as the deployment target in lab 05",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "files": [
+            "src/Site.php"
+        ]
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

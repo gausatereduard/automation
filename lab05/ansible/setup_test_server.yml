@@ -1,0 +1,74 @@
+---
+# Installs and configures everything the test server needs to host the site:
+# Apache2, PHP, the PHP modules used by the application and the virtual host.
+- name: Configure the test server
+  hosts: test_servers
+  become: true
+  gather_facts: true
+
+  vars:
+    project_root: /var/www/html
+    apache_packages:
+      - apache2
+      - libapache2-mod-php
+      - php
+      - php-cli
+      - php-mbstring
+      - php-xml
+      - php-curl
+      - php-zip
+      - unzip
+
+  tasks:
+    - name: Update the apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install Apache2 and PHP
+      ansible.builtin.apt:
+        name: "{{ apache_packages }}"
+        state: present
+
+    - name: Make sure the document root exists
+      ansible.builtin.file:
+        path: "{{ project_root }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Install the Apache virtual host for the site
+      ansible.builtin.template:
+        src: templates/php_site.conf.j2
+        dest: /etc/apache2/sites-available/000-default.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Apache
+
+    - name: Enable the Apache rewrite module
+      ansible.builtin.apache2_module:
+        name: rewrite
+        state: present
+      notify: Restart Apache
+
+    - name: Ensure Apache is running
+      ansible.builtin.service:
+        name: apache2
+        state: started
+
+    - name: Check that the server answers on port 80
+      ansible.builtin.uri:
+        url: http://127.0.0.1/
+        status_code: 200
+      register: apache_check
+      retries: 5
+      delay: 2
+      until: apache_check.status == 200
+
+  handlers:
+    - name: Restart Apache
+      ansible.builtin.service:
+        name: apache2
+        state: restarted
