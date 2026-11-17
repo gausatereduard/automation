@@ -1,0 +1,3 @@
+# Keep shell scripts and Dockerfiles LF-only so they work inside Linux containers.
+*.sh text eol=lf
+Dockerfile* text eol=lf

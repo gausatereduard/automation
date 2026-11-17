@@ -1,0 +1,6 @@
+.env
+secrets/
+app/vendor/
+app/build/
+app/.phpunit.cache/
+app/.phpunit.result.cache

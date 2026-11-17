@@ -1,0 +1,17 @@
+FROM composer:2 AS composer
+
+FROM jenkins/ssh-agent
+
+# PHP CLI, the extensions required by PHPUnit, Composer and Git.
+# The build pipeline runs `composer install` and `vendor/bin/phpunit` here.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        php-cli \
+        php-mbstring \
+        php-xml \
+        php-zip \
+        php-curl \
+        unzip \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer /usr/bin/composer /usr/local/bin/composer
